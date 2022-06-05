@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="initial-scale=1, maximum-scale=1, user-scalable=no" />
+		<title>zeng</title>
+
+		<style>
+			html,
+			body,
+			#viewDiv {
+				padding: 0;
+				margin: 0;
+				height: 100%;
+				width: 100%;
+			}
+		</style>
+
+		<link rel="stylesheet" href="https://js.arcgis.com/4.23/esri/themes/light/main.css">
+		<script src="https://js.arcgis.com/4.23/"></script>
+		<link rel="stylesheet" href="style.css">
+		
+		<script>
+			require([
+				"esri/config",
+				"esri/Map",
+				"esri/views/MapView",
+				"esri/layers/FeatureLayer",
+				"esri/Graphic",
+				"esri/layers/GeoJSONLayer", "esri/geometry/geometryEngine"
+			], function(esriConfig, Map, MapView, FL, Graphic, GeoJSONLayer, geometryEngine) {
+
+				esriConfig.apiKey =
+					"AAPK56e3ac027f044c4089d8ceec232fc05dYaOuzVRzm8tMRqvzOvDvIEevbqJ85yppn9PacU6cy4duurJrVK9wo_8BcWO8i8bi";
+
+				const map = new Map({
+					basemap: "osm-standard" // Basemap layer service
+				});
+
+				const layer_2022 = new FL({
+					url: "https://services9.arcgis.com/RHVPKKiFTONKtxq3/arcgis/rest/services/USGS_Seismic_Data_v1/FeatureServer",
+					popupTemplate: {
+						title: "{magnitude}"
+					}
+				});
+				map.add(layer_2022);
+
+				const geojsonlayer = new GeoJSONLayer({
+					url: "https://cxqttkl.github.io/web4gis15/China_No_Area.json",
+					copyright: "China Province"
+				});
+				geojsonlayer.outFields = ["*"];
+				map.add(geojsonlayer);
+
+				const view = new MapView({
+					map: map,
+					center: [112, 35.027], // Longitude, latitude
+					zoom: 3, // Zoom level
+					container: "viewDiv" // Div element
+				});
+				
+				view.ui.remove("zoom");
+
+				view.on("click", function(evt) {
+					view.graphics.removeAll();
+					if (evt.button != 0) return;
+					let query = geojsonlayer.createQuery();
+					query.geometry = view.toMap(evt); // the point location of the pointer
+					query.distance = 2;
+					query.units = "miles";
+					query.spatialRelationship = "intersects"; // this is the default
+					query.returnGeometry = true;
+					query.outFields = ["*"];
+					//query.where = "mag > 3";
+
+					//geojsonlayer.queryFeatureCount(query).then(function (abc) { alert("Layer: "+abc) });
+					geojsonlayer.queryFeatures(query).then(function(abc) {
+
+
+						abc.features.forEach(function(item) {
+
+							const bufferPoly = geometryEngine.geodesicBuffer(item.geometry, 100,
+								'kilometers');
+
+							var g = new Graphic({
+								geometry: bufferPoly, //item.geometry,
+								attributes: item.attributes,
+								symbol: {
+									type: "simple-fill",
+									color: [200, 10, 100, 0.3]
+									//size: 3,//item.attributes['magnitude'] * item.attributes['magnitude'],
+									//style: "square"
+
+								}
+							});
+
+							view.graphics.add(g);
+
+							const area = geometryEngine.geodesicArea(item.geometry,
+								"square-kilometers");
+
+							let query2 = layer_2022.createQuery();
+							query2.geometry = bufferPoly;
+
+							query2.spatialRelationship = "intersects"; // this is the default
+							query2.returnGeometry = true;
+							query2.outFields = ["*"];
+
+							layer_2022.queryFeatures(query2).then(function(eqs) {
+
+								eqs.features.forEach(function(eachEq) {
+
+									var g = new Graphic({
+										geometry: eachEq.geometry,
+										attributes: eachEq.attributes,
+										symbol: {
+											type: "simple-marker",
+											color: [100, 0, 0, 0.8]
+											//size: 3,//item.attributes['magnitude'] * item.attributes['magnitude'],
+											//style: "square"
+
+										}
+									});
+
+									view.graphics.add(g);
+								});
+
+							});
+
+						});
+
+					});
+
+				});
+
+
+			});
+		</script>
+
+	</head>
+
+	<body>
+		<div id="viewDiv"></div>
+		<link rel="stylesheet" href="style.css">
+		<ul>
+			<li><a class="entypo-star" href="Map-highlight.html"></a> <span>Map-highlight</span></li>
+
+			<li><a class="entypo-newspaper" href="Map-buffer.html"></a> <span>Map-buffer</span></li>
+		</ul>
+	</body>
+
+</html>
